@@ -1,117 +1,88 @@
 import React, { useMemo } from 'react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import useSimStore from '../store/useSimStore';
+import { 
+  ComposedChart, 
+  Area, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  Legend 
+} from 'recharts';
+import { useSimStore } from '../store/useSimStore';
 import { calculateSimulation } from '../engine/DynamicsEngine';
-import { TrendingUp } from 'lucide-react';
-import InfoTip from './InfoTip';
+import { TrendingUp, Users, ShoppingCart, Database, PieChart, AlertCircle } from 'lucide-react';
 
-const ChartTooltip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null;
-  const row = payload[0]?.payload;
-  const formatNum = (val) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(val);
-  const formatMoney = (val) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
+const formatMoney = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
+const formatNum = (val) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(val);
 
-  return (
-    <div className="bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs shadow-xl min-w-[180px]">
-      <p className="font-bold text-white mb-2">Month {label}</p>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-2 text-slate-400">
-        <span>CCU</span>
-        <span className="text-right font-semibold text-slate-200">{formatNum(row.ccu)}</span>
-        <span>MAU</span>
-        <span className="text-right font-semibold text-slate-200">{formatNum(row.mau)}</span>
-        <span>New / Churned</span>
-        <span className="text-right font-semibold text-slate-200">
-          +{formatNum(row.newAcquisitions)} / −{formatNum(row.churned)}
-        </span>
-        <span>B2C / CCU</span>
-        <span className="text-right font-semibold text-emerald-400">{formatMoney(row.b2cPerCcu)}</span>
-        <span>Staff OpEx</span>
-        <span className="text-right font-semibold text-violet-300">{formatMoney(row.staffOpex)}</span>
+const CustomTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    
+    return (
+      <div className="bg-slate-950/95 border border-slate-700 p-5 rounded-xl shadow-2xl w-[480px] backdrop-blur-xl z-50 font-sans text-white">
+        <div className="flex justify-between items-start mb-4 border-b border-slate-800 pb-4">
+          <div>
+            <h3 className="text-xl font-black text-white flex items-center gap-2">Month {label} Snapshot</h3>
+            <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+              <Users size={12}/> {formatNum(data.ccu)} Avg CCU | {formatNum(data.mau)} Unique MAU
+            </p>
+          </div>
+          <div className="text-right">
+            <div className={`text-xs font-bold px-2 py-1 rounded-md mb-1 inline-block ${data.serverLoad > 90 ? 'bg-red-950/50 text-red-400 border border-red-900/50' : 'bg-emerald-950/50 text-emerald-400 border border-emerald-900/50'}`}>
+              Load: {Math.round(data.serverLoad)}%
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 mb-4 bg-slate-900/50 p-3 rounded-lg border border-slate-800">
+          <div><p className="text-[10px] text-slate-500 font-bold uppercase">Gross Rev</p><p className="text-sm font-black text-blue-400">{formatMoney(data.grossRev)}</p></div>
+          <div><p className="text-[10px] text-slate-500 font-bold uppercase">Total OpEx</p><p className="text-sm font-black text-red-400">{formatMoney(data.expenses)}</p></div>
+          <div className="text-right"><p className="text-[10px] text-slate-500 font-bold uppercase">Net EBITDA</p><p className={`text-sm font-black ${data.net > 0 ? 'text-emerald-400' : 'text-red-500'}`}>{formatMoney(data.net)}</p></div>
+        </div>
+
+        <div className="space-y-3">
+          <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800 pb-1 flex items-center gap-1"><ShoppingCart size={10}/> Itemized B2C Revenue</h4>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+            <div className="flex justify-between"><span className="text-slate-400">Ranks</span><span className="text-white font-medium">{formatMoney(data.rankRev)}</span></div>
+            <div className="flex justify-between"><span className="text-slate-400">Battlepass</span><span className="text-white font-medium">{formatMoney(data.battlepassRev)}</span></div>
+            <div className="flex justify-between"><span className="text-slate-400">Gacha</span><span className="text-white font-medium">{formatMoney(data.crateRev)}</span></div>
+            <div className="flex justify-between"><span className="text-slate-400">Claims</span><span className="text-white font-medium">{formatMoney(data.claimRev)}</span></div>
+          </div>
+          
+          <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800 pb-1 mt-3 flex items-center gap-1"><Database size={10}/> Enterprise B2B Value</h4>
+          <div className="flex justify-between text-xs"><span className="text-slate-400">Enriched Data Profiles</span><span className="text-purple-400 font-bold">{formatMoney(data.b2bRev)}</span></div>
+        </div>
       </div>
-      {payload.map((entry) => (
-        <p key={entry.dataKey} className="font-semibold" style={{ color: entry.color }}>
-          {entry.name}: {formatMoney(entry.value)}
-        </p>
-      ))}
-      <p className={`font-bold mt-2 pt-2 border-t border-slate-800 ${row.net >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-        Net: {formatMoney(row.net)} ({Math.round(row.netMargin)}%)
-      </p>
-    </div>
-  );
+    );
+  }
+  return null;
 };
 
-const MatrixChart = () => {
+export default function MatrixChart() {
   const store = useSimStore();
   const simData = useMemo(() => calculateSimulation(store).data, [store]);
 
   return (
-    <div className="bg-slate-900 rounded-xl p-6 border border-slate-800 shadow-xl">
+    <div className="bg-slate-900 rounded-xl p-6 border border-slate-800 shadow-xl h-[450px] flex flex-col">
       <div className="flex justify-between items-center mb-6">
-        <h3 className="text-sm font-bold text-white flex items-center gap-2">
-          <TrendingUp className="text-blue-500" size={16} /> 24-Month Trajectory
-          <InfoTip
-            title="Revenue vs expenses"
-            body="Blue area = gross revenue (B2C + B2B). Red line = total OpEx (infra, creators, Tebex fees, admin, staff). Hover any month for CCU, MAU, and net margin."
-          />
-        </h3>
-        <div className="flex gap-4 text-[10px] font-medium uppercase tracking-wider">
-          <span className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-sm bg-blue-500" /> Gross
-          </span>
-          <span className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-sm bg-red-500" /> Expenses
-          </span>
-        </div>
+        <h3 className="text-sm font-bold text-white flex items-center gap-2"><TrendingUp className="text-blue-500" size={16}/> Financial Trajectory</h3>
       </div>
-      <div className="w-full h-[300px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={simData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-            <defs>
-              <linearGradient id="colorGross" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-            <XAxis
-              dataKey="month"
-              stroke="#64748b"
-              fontSize={12}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={(val) => `M${val}`}
-            />
-            <YAxis
-              stroke="#64748b"
-              fontSize={12}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={(val) => `$${val / 1000}k`}
-            />
-            <Tooltip content={<ChartTooltip />} />
-            <Area
-              type="monotone"
-              name="Gross Revenue"
-              dataKey="grossRev"
-              stroke="#3b82f6"
-              strokeWidth={3}
-              fillOpacity={1}
-              fill="url(#colorGross)"
-            />
-            <Area
-              type="monotone"
-              name="Total Expenses"
-              dataKey="expenses"
-              stroke="#ef4444"
-              strokeWidth={2}
-              fill="none"
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
+      
+      <ResponsiveContainer width="100%" height="100%">
+        <ComposedChart data={simData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+          <XAxis dataKey="month" stroke="#64748b" fontSize={11} tickFormatter={(val) => `M${val}`} />
+          <YAxis yAxisId="left" stroke="#64748b" fontSize={11} tickFormatter={(val) => `$${val / 1000}k`} />
+          <YAxis yAxisId="right" orientation="right" stroke="#34d399" fontSize={11} />
+          <Tooltip content={<CustomTooltip />} />
+          <Legend />
+          <Area yAxisId="left" type="monotone" dataKey="grossRev" name="Gross Revenue" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.2} />
+          <Line yAxisId="right" type="monotone" dataKey="ccu" name="CCU" stroke="#34d399" strokeWidth={2} dot={false} />
+        </ComposedChart>
+      </ResponsiveContainer>
     </div>
   );
-};
-
-export default MatrixChart;
+}

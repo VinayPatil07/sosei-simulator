@@ -1,167 +1,71 @@
-import React, { useMemo } from 'react';
-import useSimStore from '../store/useSimStore';
+import React, { useState } from 'react';
+import { useSimStore } from '../store/useSimStore';
 import { calculateSimulation } from '../engine/DynamicsEngine';
-import { Server, DollarSign } from 'lucide-react';
-import InfoTip from './InfoTip';
-import { KPI_TIPS } from '../data/simGlossary';
+import { Server, DollarSign, ChevronDown } from 'lucide-react';
 
-const KpiLabel = ({ label, tipKey }) => {
-  const tip = KPI_TIPS[tipKey];
-  return (
-    <span className="inline-flex items-center gap-1 text-inherit">
-      {label}
-      {tip && <InfoTip title={tip.title} body={tip.body} />}
-    </span>
-  );
-};
+export default function KpiDashboard() {
+  const levers = useSimStore();
+  const { data } = calculateSimulation(levers);
+  const [selectedMonth, setSelectedMonth] = useState(24);
 
-const KpiRow = ({ label, tipKey, value, valueClass = 'font-bold text-white', labelClass = 'text-slate-400 text-sm' }) => (
-  <div className="flex justify-between items-end mb-2">
-    <span className={labelClass}>
-      <KpiLabel label={label} tipKey={tipKey} />
-    </span>
-    <span className={valueClass}>{value}</span>
-  </div>
-);
-
-const KpiDashboard = () => {
-  const store = useSimStore();
-  const simData = useMemo(() => calculateSimulation(store).data, [store]);
-
-  const m12 = simData[11];
-  const m24 = simData[23];
-  const currentLoad = m24.serverLoad;
-
-  const formatMoney = (val) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
-  const formatNum = (val) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(val);
+  const mData = data.find(d => d.month === selectedMonth) || data[23];
+  const formatMoney = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-      <div
-        className={`p-6 rounded-xl border relative overflow-hidden shadow-xl ${
-          currentLoad > 100
-            ? 'bg-red-950/20 border-red-900/50'
-            : currentLoad > 85
-              ? 'bg-amber-950/20 border-amber-900/50'
-              : 'bg-slate-900 border-slate-800'
-        }`}
-      >
-        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-2">
-          <Server size={14} />
-          <KpiLabel label="Server Health (M24)" tipKey="serverHealth" />
+    <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl space-y-6">
+      {/* Header & Selector */}
+      <div className="flex justify-between items-center">
+        <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2">
+          <Server size={16} className="text-blue-500" /> Economic Milestones
         </h3>
-        <p
-          className={`text-2xl font-black ${
-            currentLoad > 100 ? 'text-red-500' : currentLoad > 85 ? 'text-amber-500' : 'text-emerald-500'
-          }`}
+        <select 
+          className="bg-slate-950 border border-slate-700 text-xs text-white p-1 rounded cursor-pointer"
+          value={selectedMonth}
+          onChange={(e) => setSelectedMonth(Number(e.target.value))}
         >
-          {currentLoad > 100 ? 'CRITICAL LAG' : currentLoad > 85 ? 'HIGH STRESS' : 'OPTIMAL'}
-        </p>
-        <div className="mt-4 w-full bg-slate-950 rounded-full h-2 relative border border-slate-800">
-          <div
-            className={`h-full absolute left-0 top-0 transition-all ${
-              currentLoad > 100 ? 'bg-red-500' : currentLoad > 85 ? 'bg-amber-500' : 'bg-emerald-500'
-            }`}
-            style={{ width: `${Math.min(currentLoad, 100)}%` }}
-          />
-          <div className="absolute left-[85%] top-0 bottom-0 w-px bg-white/50" />
-        </div>
-        <p className="text-xs text-slate-500 mt-2 text-right">Load: {Math.round(currentLoad)}%</p>
-        <div className="mt-4 pt-4 border-t border-slate-800/80 grid grid-cols-2 gap-3 text-xs">
-          <div>
-            <p className="text-slate-500 mb-0.5 flex items-center gap-1">
-              <KpiLabel label="CCU" tipKey="ccu" />
-            </p>
-            <p className="font-bold text-slate-300">{formatNum(m24.ccu)}</p>
-          </div>
-          <div>
-            <p className="text-slate-500 mb-0.5 flex items-center gap-1">
-              <KpiLabel label="MAU" tipKey="mau" />
-            </p>
-            <p className="font-bold text-slate-300">{formatNum(m24.mau)}</p>
-          </div>
-          <div className="col-span-2">
-            <p className="text-slate-500 mb-0.5">Backend shards</p>
-            <p className="font-bold text-slate-300">
-              {m24.backendInstances} / 15 · {formatMoney(m24.infraSpend)} infra
-            </p>
-          </div>
-        </div>
+          {[1, 12, 24].map(m => <option key={m} value={m}>Month {m}</option>)}
+          <option disabled>---</option>
+          {data.map(d => <option key={d.month} value={d.month}>Month {d.month}</option>)}
+        </select>
       </div>
 
-      <div className="bg-slate-900 rounded-xl p-6 border border-slate-800 shadow-xl">
-        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-          <DollarSign size={14} /> Month 12 Economics
-        </h3>
-        <KpiRow
-          label="B2C Gross / CCU"
-          tipKey="b2cPerCcu"
-          value={formatMoney(m12.b2cPerCcu)}
-          valueClass="text-lg font-bold text-emerald-400"
-        />
-        <KpiRow
-          label="CCU · MAU"
-          tipKey="ccu"
-          value={`${formatNum(m12.ccu)} · ${formatNum(m12.mau)}`}
-          valueClass="text-lg font-bold text-white"
-        />
-        <KpiRow
-          label="Staff OpEx"
-          tipKey="staffOpex"
-          value={formatMoney(m12.staffOpex)}
-          valueClass="text-sm font-bold text-violet-400"
-        />
-        <div className="flex justify-between items-end pt-2 border-t border-slate-800">
-          <span className="text-slate-400 text-sm">
-            <KpiLabel label="Monthly Net" tipKey="netMargin" />
-          </span>
-          <span className={`text-xl font-bold ${m12.net > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-            {formatMoney(m12.net)}
-          </span>
+      {/* Economic Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Snapshot 1: Server Health */}
+        <div className="bg-slate-950/50 p-4 rounded-lg border border-slate-800">
+          <p className="text-[10px] uppercase text-slate-500 font-bold mb-2">Server Health (M{selectedMonth})</p>
+          <h4 className="text-emerald-500 text-lg font-black">OPTIMAL</h4>
+          <div className="h-1.5 w-full bg-slate-800 rounded-full mt-2 mb-1 overflow-hidden">
+            <div className="h-full bg-emerald-500" style={{ width: `${mData.serverLoad}%` }}></div>
+          </div>
+          <p className="text-[10px] text-slate-500 mb-4">Load: {Math.round(mData.serverLoad)}%</p>
+          <div className="flex justify-between text-xs">
+            <span className="text-slate-400">CCU: <b className="text-white">{mData.ccu}</b></span>
+            <span className="text-slate-400">MAU: <b className="text-white">{mData.mau}</b></span>
+          </div>
         </div>
-        <p className="text-[10px] text-slate-600 mt-1 text-right">Margin {Math.round(m12.netMargin)}%</p>
-      </div>
 
-      <div className="bg-blue-950/20 rounded-xl p-6 border border-blue-900/40 shadow-xl">
-        <h3 className="text-xs font-bold text-blue-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-          <DollarSign size={14} /> Month 24 Scale
-        </h3>
-        <KpiRow
-          label="B2C Gross / CCU"
-          tipKey="b2cPerCcu"
-          value={formatMoney(m24.b2cPerCcu)}
-          valueClass="text-lg font-bold text-emerald-400"
-          labelClass="text-blue-200/60 text-sm"
-        />
-        <KpiRow
-          label="Gross Revenue"
-          tipKey="grossRev"
-          value={formatMoney(m24.grossRev)}
-          valueClass="text-lg font-bold text-white"
-          labelClass="text-blue-200/60 text-sm"
-        />
-        <KpiRow
-          label="Staff OpEx"
-          tipKey="staffOpex"
-          value={formatMoney(m24.staffOpex)}
-          valueClass="text-sm font-bold text-violet-400"
-          labelClass="text-blue-200/60 text-sm"
-        />
-        <div className="flex justify-between items-end pt-2 border-t border-blue-900/40">
-          <span className="text-blue-200/60 text-sm">
-            <KpiLabel label="Monthly Net" tipKey="netMargin" />
-          </span>
-          <span className={`text-xl font-bold ${m24.net > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-            {formatMoney(m24.net)}
-          </span>
+        {/* Snapshot 2: Economics */}
+        <div className="bg-slate-950/50 p-4 rounded-lg border border-slate-800">
+          <p className="text-[10px] uppercase text-slate-500 font-bold mb-4">B2C Gross / CCU</p>
+          <h4 className="text-emerald-400 text-xl font-black">{formatMoney(mData.b2cPerCcu)}</h4>
+          <div className="mt-4 space-y-2 text-xs">
+            <div className="flex justify-between border-b border-slate-800 pb-1"><span>Staff OpEx</span><span className="text-purple-400 font-bold">{formatMoney(levers.staffDevBudget)}</span></div>
+            <div className="flex justify-between pt-1"><span>Monthly Net</span><span className="text-emerald-400 font-bold">{formatMoney(mData.net)}</span></div>
+          </div>
         </div>
-        <p className="text-[10px] text-blue-400/50 mt-1 text-right">
-          Margin {Math.round(m24.netMargin)}% · BuiltByBit ~$40–$60/CCU
-        </p>
+
+        {/* Snapshot 3: Scale */}
+        <div className="bg-slate-950/50 p-4 rounded-lg border border-blue-900/20">
+          <p className="text-[10px] uppercase text-slate-500 font-bold mb-4">Month {selectedMonth} Scale</p>
+          <div className="space-y-2 text-xs">
+            <div className="flex justify-between"><span>Gross Revenue</span><span className="font-bold">{formatMoney(mData.grossRev)}</span></div>
+            <div className="flex justify-between border-b border-slate-800 pb-2"><span>Staff OpEx</span><span className="text-purple-400 font-bold">{formatMoney(levers.staffDevBudget)}</span></div>
+            <div className="flex justify-between pt-1"><span>Monthly Net</span><span className="text-emerald-400 text-lg font-black">{formatMoney(mData.net)}</span></div>
+          </div>
+          <p className="text-[9px] text-slate-600 mt-2">Margin {mData.netMargin.toFixed(0)}% • BuiltByBit Benchmarks</p>
+        </div>
       </div>
     </div>
   );
-};
-
-export default KpiDashboard;
+}

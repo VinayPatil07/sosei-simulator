@@ -1,206 +1,199 @@
 /**
- * SOSEI MEDIA - SYSTEM DYNAMICS ENGINE V5.1
- * BuiltByBit benchmarks: Network ~$40/CCU, Box gamemode ~$58/CCU @ ~$10k/mo gross B2C.
+ * SOSEI MEDIA - ENTERPRISE SYSTEM DYNAMICS ENGINE V6.0
+ * Fully itemized mathematical model. Calculates precise purchase volumes 
+ * for 7 Subscription Tiers, 6 Crate Types, 5 Claim Block Tiers, and Battlepasses.
  */
 
+// --- GLOBAL CONSTANTS & INFRASTRUCTURE ---
 export const MAX_CCU_CAP = 1000;
 export const CCU_PER_BACKEND_INSTANCE = 70;
 export const MAX_BACKEND_INSTANCES = 15;
-export const FULL_SCALE_INFRA_COST = 427;
-
-/** MAU pool for subs + B2B (CCU-anchored shop drives BuiltByBit B2C) */
-const BASE_MAU_MULTIPLIER = 32;
-
-const MINNOW_PCT = 0.70;
-const DOLPHIN_PCT = 0.20;
-const WHALE_PCT = 0.10;
-
-const NETWORK_STACK_COST = 107;
-const DEDICATED_BOX_COST = 160;
+const BASE_MAU_MULTIPLIER = 32; // 1 CCU slot = ~32 rotating unique MAU per month
 const BASE_MONTHLY_CHURN = 0.24;
+const SYSTEM_OVERHEAD_FACTOR = 0.50; // 50% gross erosion for plugins, ad-hoc expenses, and maintenance
 
-const FUNNEL = {
-  uniqueReachRatio: 0.38,
-  serverPageCtr: 0.032,
-  trialCompletion: 0.36,
-  trialToRegularAtBaseline: 0.14,
-  baselineConversionSlider: 0.3,
-  viralCoeff: 0.022,
-  maturityHalfLifeMonths: 9,
-};
-
-/** BuiltByBit Server A (0.8) → ~$40/CCU shop; Server B (1.5) → ~$60/CCU shop */
-const GAMEMODE_MIN = 0.8;
-const GAMEMODE_MAX = 1.5;
-const SHOP_PER_CCU_SURVIVAL = 40;
-const SHOP_PER_CCU_BOX = 60;
-
-export const builtByBitShopPerCcu = (gamemodeMultiplier) => {
-  const t = (gamemodeMultiplier - GAMEMODE_MIN) / (GAMEMODE_MAX - GAMEMODE_MIN);
-  return SHOP_PER_CCU_SURVIVAL + t * (SHOP_PER_CCU_BOX - SHOP_PER_CCU_SURVIVAL);
-};
-
-export const calculateRequiredInfra = (ccu) => {
-  const instances = Math.min(
-    Math.max(1, Math.ceil(ccu / CCU_PER_BACKEND_INSTANCE)),
-    MAX_BACKEND_INSTANCES,
-  );
-
-  let computeCost = 0;
-  if (instances <= 7) {
-    computeCost = DEDICATED_BOX_COST * (instances / 7);
-  } else {
-    const box2Shards = Math.min(instances - 7, 8);
-    computeCost = DEDICATED_BOX_COST + DEDICATED_BOX_COST * (box2Shards / 8);
+// --- CATALOG PRICING ---
+const CATALOG = {
+  ranks: {
+    tier1: 4.99, tier2: 9.99, tier3: 19.99, tier4: 34.99, 
+    tier5: 54.99, tier6: 89.99, tier7: 149.99
+  },
+  battlepass: 10.00,
+  crates: {
+    common: 1.99, uncommon: 4.99, rare: 9.99, epic: 14.99, mythic: 24.99, trail: 3.99
+  },
+  claimBlocks: {
+    pkg1k: 4.99, pkg2k5: 9.99, pkg7k5: 24.99, pkg17k: 49.99, pkg45k: 99.99
   }
-
-  return Math.round(NETWORK_STACK_COST + computeCost);
 };
 
-export const calculateSoftCeiling = (month) => {
-  const asymptote = 520;
-  const floor = 60;
-  return Math.round(floor + asymptote * (1 - Math.exp(-month / 18)));
-};
-
-const networkMaturity = (month) => 0.2 + 0.8 * (1 - Math.exp(-month / FUNNEL.maturityHalfLifeMonths));
-
-const creatorAcquisition = (levers, month, seasonality, motivationMulti, creatorFatigue) => {
-  const uniqueReach = levers.creatorViews * FUNNEL.uniqueReachRatio;
-  const pageClicks = uniqueReach * FUNNEL.serverPageCtr;
-  const trials = pageClicks * FUNNEL.trialCompletion;
-  const stickiness =
-    FUNNEL.trialToRegularAtBaseline * (levers.viewerConversion / FUNNEL.baselineConversionSlider);
-
-  let newPlayers = trials * stickiness * motivationMulti * creatorFatigue * seasonality;
-  newPlayers *= networkMaturity(month);
-  return newPlayers;
-};
-
-/** Gacha whale uplift on top of BuiltByBit CCU anchor (70/20/10 minnow/dolphin/whale curve) */
-const whaleSpendUplift = (levers) => {
-  const priceFactor = Math.min(1.35, levers.itemPrice / 8);
-  const convFactor = Math.min(1.25, levers.purchaseTendency / 3);
-  const whaleCurve = MINNOW_PCT * 1 + DOLPHIN_PCT * 5 + WHALE_PCT * 35;
-  const neutralCurve = MINNOW_PCT * 1 + DOLPHIN_PCT * 5 + WHALE_PCT * 35;
-  return 0.9 + (whaleCurve / neutralCurve - 1) * 0.05 + 0.08 * (priceFactor - 1) + 0.06 * (convFactor - 1);
-};
-
-const calculateB2cRevenue = (levers, currentCcu, currentMau, lagStorePenalty) => {
-  const perCcuAnchor = builtByBitShopPerCcu(levers.gamemodeMultiplier);
-  const spendIntensity = 0.92 + (levers.purchaseTendency / 10) * 0.06 + (levers.itemPrice / 12) * 0.04;
-
-  let shopRev =
-    currentCcu * perCcuAnchor * spendIntensity * whaleSpendUplift(levers) * lagStorePenalty;
-  shopRev *= levers.gamemodeMultiplier;
-
-  const subscribers = currentMau * (levers.subConversion / 100) * lagStorePenalty;
-  const subRev = subscribers * levers.subPrice;
-
-  const b2cRev = shopRev + subRev;
-  const b2cPerCcu = currentCcu > 0 ? b2cRev / currentCcu : 0;
-
-  return { shopRev, subRev, b2cRev, b2cPerCcu };
+// --- HELPER FUNCTIONS ---
+export const calculateRequiredInfra = (ccu) => {
+  const instances = Math.min(Math.max(1, Math.ceil(ccu / CCU_PER_BACKEND_INSTANCE)), MAX_BACKEND_INSTANCES);
+  return Math.round(107 + (160 * (instances / 7))); // Base proxy + node costs
 };
 
 export const calculateSimulation = (levers) => {
-  let currentCcu = 42;
+  let currentCcu = 42; // Day 1 baseline
   let data = [];
   let cumulativeGross = 0;
   let cumulativeExp = 0;
   let creatorFatigue = 1.0;
 
   for (let month = 1; month <= 24; month++) {
+    // ---------------------------------------------------------
+    // 1. SEASONALITY & ACQUISITION PHYSICS
+    // ---------------------------------------------------------
     let seasonality = 1.0;
     const calendarMonth = month % 12 || 12;
-    if ([6, 7, 8].includes(calendarMonth)) seasonality = 1.22;
-    else if ([12].includes(calendarMonth)) seasonality = 1.15;
-    else if ([9, 10, 1].includes(calendarMonth)) seasonality = 0.88;
+    if ([6, 7, 8].includes(calendarMonth)) seasonality = 1.25; // Summer Surge
+    else if ([12].includes(calendarMonth)) seasonality = 1.15; // Winter Holidays
+    else if ([9, 10, 1].includes(calendarMonth)) seasonality = 0.85; // School slump
 
-    const motivationMulti = Math.max(0.65, 0.75 + (levers.creatorShare - 15) * 0.012);
-    creatorFatigue = Math.max(0.45, creatorFatigue - 0.012);
-    if (levers.creatorShare > 28) creatorFatigue += 0.006;
+    const motivationMulti = Math.max(0.5, 0.75 + (levers.creatorShare - 15) * 0.015);
+    creatorFatigue = Math.max(0.40, creatorFatigue - 0.015);
+    if (levers.creatorShare > 30) creatorFatigue += 0.008; // High pay slows fatigue
 
-    const fromCreators = creatorAcquisition(levers, month, seasonality, motivationMulti, creatorFatigue);
-    const fromOrganic =
-      currentCcu * FUNNEL.viralCoeff * seasonality * networkMaturity(month) * Math.min(1, currentCcu / 200);
-
-    const newAcquisitions = fromCreators + fromOrganic;
-    const softCeiling = calculateSoftCeiling(month);
-
-    const backendInstances = Math.min(
-      Math.max(1, Math.ceil(currentCcu / CCU_PER_BACKEND_INSTANCE)),
-      MAX_BACKEND_INSTANCES,
-    );
+    const fromCreators = (levers.creatorViews * 0.38 * 0.032 * 0.36) * 
+                         (levers.viewerConversion / 0.3) * motivationMulti * creatorFatigue * seasonality;
+    const fromOrganic = currentCcu * 0.025 * seasonality * Math.min(1, currentCcu / 250);
+    
+    // ---------------------------------------------------------
+    // 2. INFRASTRUCTURE & CHURN (SERVER LOAD)
+    // ---------------------------------------------------------
     const requiredInfraCost = calculateRequiredInfra(currentCcu);
-    const actualInfraSpend = Math.min(requiredInfraCost, levers.monthlyInfra);
     const serverLoad = requiredInfraCost / levers.monthlyInfra;
+    
+    let churnRate = BASE_MONTHLY_CHURN - (levers.creatorShare * 0.0015);
+    if (serverLoad > 0.9) churnRate += 0.15; // Lag begins
+    if (serverLoad > 1.1) churnRate += 0.45; // Catastrophic lag
+    churnRate = Math.max(0.10, Math.min(churnRate, 0.65));
 
-    let churnRate = BASE_MONTHLY_CHURN;
-    if (serverLoad > 0.9 && serverLoad <= 1.1) churnRate += 0.18;
-    if (serverLoad > 1.1) churnRate += 0.42;
-    if (currentCcu > softCeiling * 0.92) churnRate += 0.06;
-    churnRate -= levers.creatorShare * 0.0012;
-    churnRate = Math.max(0.14, Math.min(churnRate, 0.55));
-
-    const churned = currentCcu * churnRate;
-    let projectedCcu = currentCcu - churned + newAcquisitions;
-    projectedCcu = Math.min(projectedCcu, softCeiling, MAX_CCU_CAP);
-    projectedCcu = Math.max(projectedCcu, currentCcu * 0.55);
-    currentCcu = projectedCcu;
-
+    currentCcu = Math.min(MAX_CCU_CAP, Math.max(currentCcu * 0.50, currentCcu - (currentCcu * churnRate) + fromCreators + fromOrganic));
     const currentMau = Math.round(currentCcu * BASE_MAU_MULTIPLIER);
-    const lagStorePenalty = serverLoad > 0.95 ? 0.35 : 1.0;
+    const lagStorePenalty = serverLoad > 0.95 ? 0.4 : 1.0; // Players don't buy if lagging
 
-    const { shopRev, subRev, b2cRev, b2cPerCcu } = calculateB2cRevenue(
-      levers,
-      currentCcu,
-      currentMau,
-      lagStorePenalty,
-    );
+    // ---------------------------------------------------------
+    // 3. ITEMIZED B2C MONETIZATION MODEL
+    // ---------------------------------------------------------
+    const activeSubs = currentMau * (levers.subConversion / 100) * lagStorePenalty;
+    const activeBuyers = currentMau * (levers.purchaseTendency / 100) * lagStorePenalty;
 
-    const dataFreshnessMulti = 1 + churnRate * 0.35;
-    const scalePremium = currentMau > 8000 ? 1.4 : currentMau > 4000 ? 1.2 : 1.0;
+    // A. RANK SUBSCRIPTIONS (Exponential Tier Decay)
+    // Tiers 1-4 are Minnows/Dolphins. Tiers 5-7 are Whales.
+    const whaleShift = levers.whaleCatcherEnabled ? 0.02 : 0; // Shifts 2% to top tier if enabled
+    const rankVols = {
+      t1: activeSubs * 0.40,
+      t2: activeSubs * 0.25,
+      t3: activeSubs * 0.15,
+      t4: activeSubs * 0.10,
+      t5: activeSubs * (0.05 - whaleShift/2),
+      t6: activeSubs * 0.03,
+      t7: activeSubs * (0.02 + whaleShift)
+    };
+    const rankRev = (rankVols.t1 * CATALOG.ranks.tier1) + (rankVols.t2 * CATALOG.ranks.tier2) +
+                    (rankVols.t3 * CATALOG.ranks.tier3) + (rankVols.t4 * CATALOG.ranks.tier4) +
+                    (rankVols.t5 * CATALOG.ranks.tier5) + (rankVols.t6 * CATALOG.ranks.tier6) +
+                    (rankVols.t7 * CATALOG.ranks.tier7);
+
+    // B. SEASONAL BATTLEPASS
+    // Assumes roughly 60% of generic active buyers will grab the high-value $10 pass
+    const bpVol = activeBuyers * 0.60;
+    const battlepassRev = bpVol * CATALOG.battlepass;
+
+    // C. GACHA & COSMETIC CRATES
+    // High gamemodeMultiplier (Box/P2W) increases key velocity exponentially
+    const whaleUplift = levers.whaleCatcherEnabled ? 1.8 : 1.0;
+    const totalKeysBought = activeBuyers * 3.5 * levers.gamemodeMultiplier * whaleUplift;
+    
+    const crateVols = {
+      common: totalKeysBought * 0.40,
+      uncommon: totalKeysBought * 0.25,
+      rare: totalKeysBought * 0.15,
+      epic: totalKeysBought * 0.10,
+      mythic: totalKeysBought * 0.05,
+      trail: totalKeysBought * 0.05
+    };
+    const crateRev = (crateVols.common * CATALOG.crates.common) + (crateVols.uncommon * CATALOG.crates.uncommon) +
+                     (crateVols.rare * CATALOG.crates.rare) + (crateVols.epic * CATALOG.crates.epic) +
+                     (crateVols.mythic * CATALOG.crates.mythic) + (crateVols.trail * CATALOG.crates.trail);
+
+    // D. CLAIM BLOCKS (Real Estate/Utility)
+    // Small niche of builders (approx 15% of buyers) purchase territory protection
+    const claimBuyers = activeBuyers * 0.15;
+    const claimVols = {
+      pkg1k: claimBuyers * 0.45,
+      pkg2k5: claimBuyers * 0.30,
+      pkg7k5: claimBuyers * 0.15,
+      pkg17k: claimBuyers * 0.08,
+      pkg45k: claimBuyers * 0.02
+    };
+    const claimRev = (claimVols.pkg1k * CATALOG.claimBlocks.pkg1k) + (claimVols.pkg2k5 * CATALOG.claimBlocks.pkg2k5) +
+                     (claimVols.pkg7k5 * CATALOG.claimBlocks.pkg7k5) + (claimVols.pkg17k * CATALOG.claimBlocks.pkg17k) +
+                     (claimVols.pkg45k * CATALOG.claimBlocks.pkg45k);
+
+    // ---------------------------------------------------------
+    // 4. B2B ENTERPRISE DATA MODEL
+    // ---------------------------------------------------------
+    const dataFreshnessMulti = 1 + (churnRate * 0.25); // New users entering = fresh data
+    const scalePremium = currentMau > 10000 ? 1.4 : currentMau > 5000 ? 1.2 : 1.0;
     const b2bRev = currentMau * levers.dataValue * dataFreshnessMulti * scalePremium;
+    
+    const grossRev = rankRev + battlepassRev + crateRev + claimRev + b2bRev;
 
-    const grossRev = b2cRev + b2bRev;
-    const creatorPayout = b2cRev * (levers.creatorShare / 100);
-    const paymentProcessing = grossRev * 0.05;
-    const fixedAdmin = month === 1 ? 5000 : 500;
-    const staffOpex = levers.staffDevBudget;
-
-    const expenses =
-      actualInfraSpend + creatorPayout + paymentProcessing + fixedAdmin + staffOpex;
-
-    const net = grossRev - expenses;
+    // ---------------------------------------------------------
+    // 5. EXPENSES & EBITDA (Including Hidden Costs)
+    // ---------------------------------------------------------
+    const creatorPayout = (rankRev + battlepassRev + crateRev + claimRev) * (levers.creatorShare / 100);
+    const paymentProcessing = grossRev * 0.05; // 5% Tebex/Stripe/PayPal
+    const actualInfraSpend = Math.min(requiredInfraCost, levers.monthlyInfra);
+    const fixedAdmin = month === 1 ? 5000 : 500; // LLC, Domains, initial art commissions
+    
+    // Core constraint: The 50% systemic overhead representing staff, premium plugins, marketing, and taxes
+    const totalExpenses = actualInfraSpend + creatorPayout + paymentProcessing + fixedAdmin + levers.staffDevBudget + (grossRev * SYSTEM_OVERHEAD_FACTOR);
+    
+    const net = grossRev - totalExpenses;
     const netMargin = grossRev > 0 ? (net / grossRev) * 100 : 0;
 
     cumulativeGross += grossRev;
-    cumulativeExp += expenses;
+    cumulativeExp += totalExpenses;
 
+    // Push highly detailed itemized payload for tooltips
     data.push({
       month,
       ccu: Math.round(currentCcu),
-      mau: currentMau,
-      newAcquisitions: Math.round(newAcquisitions),
-      churned: Math.round(churned),
-      softCeiling,
-      backendInstances,
-      requiredInfraCost,
-      infraSpend: actualInfraSpend,
-      shopRev,
-      subRev,
-      b2cRev,
-      b2cPerCcu,
-      b2bRev,
-      grossRev,
-      staffOpex,
-      fixedAdmin,
-      expenses,
-      net,
-      netMargin,
+      mau: Math.round(currentMau),
       serverLoad: serverLoad * 100,
       churnRate: churnRate * 100,
+      
+      // Detailed Revenue Streams
+      rankRev,
+      battlepassRev,
+      crateRev,
+      claimRev,
+      b2bRev,
+      grossRev,
+      
+      // Itemized Volume (For UI Tooltips)
+      vols: {
+        subs: rankVols,
+        battlepass: bpVol,
+        crates: crateVols,
+        claims: claimVols
+      },
+
+      // Expense Breakdown
+      expenses: {
+        creatorPayout,
+        infra: actualInfraSpend,
+        staff: levers.staffDevBudget,
+        admin: fixedAdmin,
+        overhead: (grossRev * SYSTEM_OVERHEAD_FACTOR),
+        total: totalExpenses
+      },
+
+      net,
+      netMargin,
     });
   }
 

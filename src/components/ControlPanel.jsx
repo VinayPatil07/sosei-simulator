@@ -1,255 +1,99 @@
 import React from 'react';
-import useSimStore from '../store/useSimStore';
-import { MonitorPlay, ShoppingCart, Database, Users } from 'lucide-react';
-import { LeverLabel } from './InfoTip';
-import { LEVER_TIPS } from '../data/simGlossary';
+import { useSimStore } from '../store/useSimStore';
+import { ShieldAlert, Zap, TrendingUp, Users } from 'lucide-react';
 
-const formatMoney = (val) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
-
-const LeverRow = ({ label, tipKey, valueDisplay, valueClass, children }) => (
-  <div>
-    <div className="flex justify-between mb-2 text-xs font-semibold">
-      <LeverLabel label={label} tipKey={tipKey} tips={LEVER_TIPS} />
-      <span className={valueClass}>{valueDisplay}</span>
-    </div>
-    {children}
-  </div>
-);
-
-const AcquisitionControls = ({ store, handleChange, formatNum }) => (
-  <div className="bg-slate-900 rounded-xl p-5 border border-slate-800 shadow-lg">
-    <h2 className="text-xs font-bold uppercase tracking-widest text-indigo-400 mb-6 flex items-center gap-2">
-      <MonitorPlay size={16} /> Content Acquisition
-    </h2>
-    <div className="space-y-6">
-      <LeverRow
-        label="Monthly Active Views"
-        tipKey="creatorViews"
-        valueDisplay={formatNum(store.creatorViews)}
-        valueClass="text-indigo-400"
-      >
-        <input
-          type="range"
-          min="10000"
-          max="500000"
-          step="5000"
-          value={store.creatorViews}
-          onChange={(e) => handleChange('creatorViews', e.target.value)}
-          className="w-full accent-indigo-500 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer"
-        />
-      </LeverRow>
-      <LeverRow
-        label="Viewer Conversion Rate"
-        tipKey="viewerConversion"
-        valueDisplay={`${store.viewerConversion.toFixed(1)}%`}
-        valueClass="text-indigo-400"
-      >
-        <input
-          type="range"
-          min="0.1"
-          max="2.0"
-          step="0.1"
-          value={store.viewerConversion}
-          onChange={(e) => handleChange('viewerConversion', e.target.value)}
-          className="w-full accent-indigo-500 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer"
-        />
-      </LeverRow>
-      <div className="pt-4 border-t border-slate-800">
-        <LeverRow
-          label="Creator Rev Share"
-          tipKey="creatorShare"
-          valueDisplay={`${store.creatorShare}%`}
-          valueClass="text-rose-400"
-        >
-          <input
-            type="range"
-            min="5"
-            max="50"
-            value={store.creatorShare}
-            onChange={(e) => handleChange('creatorShare', e.target.value)}
-            className="w-full accent-rose-500 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer"
-          />
-        </LeverRow>
-      </div>
-    </div>
-  </div>
-);
-
-const MonetizationControls = ({ store, handleChange }) => (
-  <div className="bg-slate-900 rounded-xl p-5 border border-slate-800 shadow-lg">
-    <h2 className="text-xs font-bold uppercase tracking-widest text-emerald-400 mb-6 flex items-center gap-2">
-      <ShoppingCart size={16} /> B2C Monetization
-    </h2>
-    <div className="space-y-6">
-      <LeverRow
-        label="Gamemode Aggressiveness"
-        tipKey="gamemodeMultiplier"
-        valueDisplay={`${store.gamemodeMultiplier.toFixed(1)}×`}
-        valueClass="text-emerald-400"
-      >
-        <input
-          type="range"
-          min="0.8"
-          max="1.5"
-          step="0.1"
-          value={store.gamemodeMultiplier}
-          onChange={(e) => handleChange('gamemodeMultiplier', e.target.value)}
-          className="w-full accent-emerald-500 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer"
-        />
-      </LeverRow>
-      <LeverRow
-        label="Avg Cart Value"
-        tipKey="itemPrice"
-        valueDisplay={formatMoney(store.itemPrice)}
-        valueClass="text-emerald-400"
-      >
-        <input
-          type="range"
-          min="1"
-          max="30"
-          value={store.itemPrice}
-          onChange={(e) => handleChange('itemPrice', e.target.value)}
-          className="w-full accent-emerald-500 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer"
-        />
-      </LeverRow>
-      <LeverRow
-        label="F2P Conversion Rate"
-        tipKey="purchaseTendency"
-        valueDisplay={`${store.purchaseTendency}%`}
-        valueClass="text-emerald-400"
-      >
-        <input
-          type="range"
-          min="1"
-          max="10"
-          value={store.purchaseTendency}
-          onChange={(e) => handleChange('purchaseTendency', e.target.value)}
-          className="w-full accent-emerald-500 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer"
-        />
-      </LeverRow>
-      <div className="pt-4 border-t border-slate-800">
-        <LeverRow
-          label="VIP Sub Price /mo"
-          tipKey="subPrice"
-          valueDisplay={formatMoney(store.subPrice)}
-          valueClass="text-emerald-400"
-        >
-          <input
-            type="range"
-            min="0"
-            max="20"
-            value={store.subPrice}
-            onChange={(e) => handleChange('subPrice', e.target.value)}
-            className="w-full accent-emerald-500 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer"
-          />
-        </LeverRow>
-      </div>
-      <LeverRow
-        label="Sub Conversion Rate"
-        tipKey="subConversion"
-        valueDisplay={`${store.subConversion}%`}
-        valueClass="text-emerald-400"
-      >
-        <input
-          type="range"
-          min="0"
-          max="10"
-          value={store.subConversion}
-          onChange={(e) => handleChange('subConversion', e.target.value)}
-          className="w-full accent-emerald-500 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer"
-        />
-      </LeverRow>
-    </div>
-  </div>
-);
-
-const DataTechControls = ({ store, handleChange, formatNum }) => (
-  <div className="bg-slate-900 rounded-xl p-5 border border-slate-800 shadow-lg">
-    <h2 className="text-xs font-bold uppercase tracking-widest text-amber-400 mb-6 flex items-center gap-2">
-      <Database size={16} /> B2B Enterprise Data
-    </h2>
-    <div className="space-y-6">
-      <LeverRow
-        label="Value Per Enriched Profile"
-        tipKey="dataValue"
-        valueDisplay={`$${store.dataValue.toFixed(2)}`}
-        valueClass="text-amber-400"
-      >
-        <input
-          type="range"
-          min="0.05"
-          max="0.75"
-          step="0.05"
-          value={store.dataValue}
-          onChange={(e) => handleChange('dataValue', e.target.value)}
-          className="w-full accent-amber-500 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer"
-        />
-      </LeverRow>
-      <div className="pt-4 border-t border-slate-800">
-        <LeverRow
-          label="Infra Budget /mo"
-          tipKey="monthlyInfra"
-          valueDisplay={formatMoney(store.monthlyInfra)}
-          valueClass="text-orange-500"
-        >
-          <input
-            type="range"
-            min="300"
-            max="2000"
-            step="25"
-            value={store.monthlyInfra}
-            onChange={(e) => handleChange('monthlyInfra', e.target.value)}
-            className="w-full accent-orange-500 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer"
-          />
-        </LeverRow>
-      </div>
-    </div>
-  </div>
-);
-
-const OpExControls = ({ store, handleChange }) => (
-  <div className="bg-slate-900 rounded-xl p-5 border border-slate-800 shadow-lg">
-    <h2 className="text-xs font-bold uppercase tracking-widest text-violet-400 mb-6 flex items-center gap-2">
-      <Users size={16} /> Staff & Development OpEx
-    </h2>
-    <div className="space-y-6">
-      <LeverRow
-        label="Staff & Development Budget /mo"
-        tipKey="staffDevBudget"
-        valueDisplay={formatMoney(store.staffDevBudget)}
-        valueClass="text-violet-400"
-      >
-        <input
-          type="range"
-          min="0"
-          max="10000"
-          step="250"
-          value={store.staffDevBudget}
-          onChange={(e) => handleChange('staffDevBudget', e.target.value)}
-          className="w-full accent-violet-500 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer"
-        />
-      </LeverRow>
-    </div>
-  </div>
-);
-
-const ControlPanel = () => {
+export default function ControlPanel() {
   const store = useSimStore();
-  const handleChange = (key, value) => store.setLever(key, Number(value));
-  const formatNum = (val) => new Intl.NumberFormat('en-US').format(val);
+
+  const handleSlider = (key, val) => store.setLever(key, Number(val));
+  const handleToggle = (key, val) => store.setLever(key, val);
 
   return (
-    <div
-      className="flex flex-col gap-6 overflow-y-auto pr-2 pb-10"
-      style={{ maxHeight: 'calc(100vh - 120px)' }}
-    >
-      <AcquisitionControls store={store} handleChange={handleChange} formatNum={formatNum} />
-      <MonetizationControls store={store} handleChange={handleChange} />
-      <DataTechControls store={store} handleChange={handleChange} formatNum={formatNum} />
-      <OpExControls store={store} handleChange={handleChange} />
+    <div className="space-y-6">
+      {/* Configuration Group 1: User Pipeline */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-indigo-400 mb-4 flex items-center gap-2">
+          <Users size={14}/> Network Funnel Strategy
+        </h3>
+        <div className="space-y-4">
+          <div>
+            <div className="flex justify-between text-xs font-semibold mb-1">
+              <span className="text-slate-300">Monthly Top-Funnel Views</span>
+              <span className="text-indigo-400">{store.creatorViews.toLocaleString()}</span>
+            </div>
+            <input type="range" min="50000" max="1000000" step="50000" value={store.creatorViews} onChange={(e) => handleSlider('creatorViews', e.target.value)} className="w-full accent-indigo-500 h-1 bg-slate-800 rounded" />
+          </div>
+          <div>
+            <div className="flex justify-between text-xs font-semibold mb-1">
+              <span className="text-slate-300">Creator Rev Share Payout</span>
+              <span className="text-rose-400">{store.creatorShare}%</span>
+            </div>
+            <input type="range" min="10" max="50" step="5" value={store.creatorShare} onChange={(e) => handleSlider('creatorShare', e.target.value)} className="w-full accent-rose-500 h-1 bg-slate-800 rounded" />
+          </div>
+        </div>
+      </div>
+
+      {/* Configuration Group 2: Interactive Storefront Parameters */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-emerald-400 mb-4 flex items-center gap-2">
+          <Zap size={14}/> Storefront Conversion Levers
+        </h3>
+        <div className="space-y-4">
+          <div>
+            <div className="flex justify-between text-xs font-semibold mb-1">
+              <span className="text-slate-300">Rank Subscription Conversion</span>
+              <span className="text-emerald-400">{store.subConversion}%</span>
+            </div>
+            <input type="range" min="0.5" max="5.0" step="0.1" value={store.subConversion} onChange={(e) => handleSlider('subConversion', e.target.value)} className="w-full accent-emerald-500 h-1 bg-slate-800 rounded" />
+          </div>
+          <div>
+            <div className="flex justify-between text-xs font-semibold mb-1">
+              <span className="text-slate-300">Cosmetic Store Conversion</span>
+              <span className="text-emerald-400">{store.purchaseTendency}%</span>
+            </div>
+            <input type="range" min="0.5" max="8.0" step="0.1" value={store.purchaseTendency} onChange={(e) => handleSlider('purchaseTendency', e.target.value)} className="w-full accent-emerald-500 h-1 bg-slate-800 rounded" />
+          </div>
+          <div>
+            <div className="flex justify-between text-xs font-semibold mb-1">
+              <span className="text-slate-300">Economy Target (Gamemode Multiplier)</span>
+              <span className="text-amber-400">{store.gamemodeMultiplier}x</span>
+            </div>
+            <input type="range" min="0.8" max="1.5" step="0.1" value={store.gamemodeMultiplier} onChange={(e) => handleSlider('gamemodeMultiplier', e.target.value)} className="w-full accent-amber-500 h-1 bg-slate-800 rounded" />
+            <p className="text-[10px] text-slate-500 mt-1">0.8 = Core Survival ($40/CCU) | 1.5 = Hardcore Box Economy ($60/CCU)</p>
+          </div>
+
+          <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
+            <div>
+              <span className="text-xs font-semibold text-slate-200 block">High-Tier Whale Bundles</span>
+              <span className="text-[10px] text-slate-500 block">Unlocks exponential $149.99 Tier-7 optimizations</span>
+            </div>
+            <input type="checkbox" checked={store.whaleCatcherEnabled} onChange={(e) => handleToggle('whaleCatcherEnabled', e.target.checked)} className="w-4 h-4 rounded text-emerald-500 accent-emerald-500 cursor-pointer" />
+          </div>
+        </div>
+      </div>
+
+      {/* Configuration Group 3: OpEx Boundaries */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-orange-400 mb-4 flex items-center gap-2">
+          <ShieldAlert size={14}/> Operational Cost Allocation
+        </h3>
+        <div className="space-y-4">
+          <div>
+            <div className="flex justify-between text-xs font-semibold mb-1">
+              <span className="text-slate-300">Fixed Staff & Dev Payroll /mo</span>
+              <span className="text-orange-400">${store.staffDevBudget.toLocaleString()}</span>
+            </div>
+            <input type="range" min="500" max="6000" step="250" value={store.staffDevBudget} onChange={(e) => handleSlider('staffDevBudget', e.target.value)} className="w-full accent-orange-500 h-1 bg-slate-800 rounded" />
+          </div>
+          <div>
+            <div className="flex justify-between text-xs font-semibold mb-1">
+              <span className="text-slate-300">Server Infrastructure Budget Cap</span>
+              <span className="text-orange-400">${store.monthlyInfra.toLocaleString()}</span>
+            </div>
+            <input type="range" min="500" max="3500" step="100" value={store.monthlyInfra} onChange={(e) => handleSlider('monthlyInfra', e.target.value)} className="w-full accent-orange-500 h-1 bg-slate-800 rounded" />
+          </div>
+        </div>
+      </div>
     </div>
   );
-};
-
-export default ControlPanel;
+}
